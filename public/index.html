@@ -557,7 +557,7 @@ async function aiPick() {
     return `id:${t.id} "${t.text}"${due}`;
   }).join("\n");
 
-  const prompt = `あなたはADHDのエンジニアを支援するタスクコーチです。
+  const prompt = `あなたはADHDを支援するタスクコーチです。
 以下のタスクに対して、各タスクの優先度（高/中/低）を判定しつつ、今すぐやるべき「たった1つ」のタスクを選んでください。
 期限の近さ・影響範囲・他タスクへの依存を考慮。半分以上が「高」にならないよう、メリハリをつけてください。
 
@@ -573,7 +573,7 @@ JSON形式のみで回答（前置き・\`\`\`不要）:
   try {
     const res = await fetch("/api/chat", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1500, messages: [{ role: "user", content: prompt }] })
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1500, messages: [{ role: "user", content: prompt }] })
     });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error?.message || "APIエラー");
@@ -914,7 +914,7 @@ JSON形式のみで回答（前置きなし）:
   try {
     const res = await fetch("/api/chat", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 2000, messages: [{ role: "user", content: prompt }] })
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 2000, messages: [{ role: "user", content: prompt }] })
     });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error?.message || "APIエラー");
