@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Focus Mode v5</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg-secondary: #f5f5f3; --bg-info: #e6f1fb; --bg-success: #eaf3de;
+    --bg-warning: #faeeda; --bg-danger: #fcebeb;
+    --text-primary: #1a1a18; --text-secondary: #5f5e5a; --text-tertiary: #888780;
+    --text-info: #185fa5; --text-success: #3b6d11; --text-warning: #854f0b; --text-danger: #a32d2d;
+    --border: rgba(0,0,0,0.15); --border-info: rgba(24,95,165,0.4);
+    --border-success: rgba(59,109,17,0.4); --border-warning: rgba(133,79,11,0.4); --border-danger: rgba(163,45,45,0.4);
+    --radius-md: 8px; --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e1c; --bg-secondary: #2a2a28;
+      --bg-info: rgba(12,68,124,0.2); --bg-success: rgba(39,80,10,0.2);
+      --bg-warning: rgba(99,56,6,0.25); --bg-danger: rgba(121,31,31,0.2);
+      --text-primary: #eeecea; --text-secondary: #b4b2a9; --text-tertiary: #888780;
+      --text-info: #85b7eb; --text-success: #97c459; --text-warning: #fac775; --text-danger: #f09595;
+      --border: rgba(255,255,255,0.15); --border-info: rgba(133,183,235,0.4);
+      --border-success: rgba(151,196,89,0.4); --border-warning: rgba(250,199,117,0.4); --border-danger: rgba(240,149,149,0.4);
+    }
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text-primary); min-height: 100vh; display: flex; justify-content: center; padding: 2rem 1rem; }
+  .app { width: 100%; max-width: 580px; }
+  .tag { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 1.5rem; }
+
+  .tabs { display: flex; margin-bottom: 1.5rem; border: 0.5px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+  .tab { flex: 1; padding: 9px 8px; font-size: 13px; font-weight: 500; border: none; border-radius: 0; cursor: pointer; background: transparent; color: var(--text-secondary); font-family: var(--font); }
+  .tab.active { background: var(--bg-info); color: var(--text-info); }
+  .tab + .tab { border-left: 0.5px solid var(--border); }
+  .panel { display: none; } .panel.active { display: block; }
+
+  label { font-size: 13px; color: var(--text-secondary); display: block; margin-bottom: 6px; }
+  input[type="text"], input[type="date"], input[type="time"], textarea {
+    width: 100%; padding: 0 12px; height: 36px;
+    border: 0.5px solid var(--border); border-radius: var(--radius-md);
+    background: var(--bg); color: var(--text-primary);
+    font-size: 14px; font-family: var(--font); outline: none;
+  }
+  input[type="date"], input[type="time"] { color-scheme: light dark; }
+  input:focus, textarea:focus { border-color: var(--border-info); box-shadow: 0 0 0 3px rgba(24,95,165,0.08); }
+  textarea { height: 90px; padding: 10px 12px; resize: none; line-height: 1.6; }
+  button { padding: 0 14px; height: 36px; border: 0.5px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--text-primary); font-size: 14px; font-family: var(--font); cursor: pointer; white-space: nowrap; }
+  button:hover { background: var(--bg-secondary); }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .settings-bar { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 1rem; padding: 8px 12px; background: var(--bg-secondary); border: 0.5px solid var(--border); border-radius: var(--radius-md); }
+  .toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggle input { margin: 0; }
+
+  .task-form { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 12px; }
+  .task-form-row { display: flex; gap: 8px; }
+  .task-form-row input[type="text"] { flex: 1; }
+  .task-form-row input[type="date"], .task-form-row input[type="time"] { flex: 1; min-width: 0; }
+
+  .task-actions-bar { display: flex; gap: 8px; margin-bottom: 1rem; }
+  .task-actions-bar button { flex: 1; font-size: 13px; }
+
+  .task-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; }
+  @keyframes taskIn {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes taskOut {
+    from { opacity: 1; transform: translateX(0) scale(1); }
+    to   { opacity: 0; transform: translateX(40px) scale(0.96); }
+  }
+  .task-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 0.5px solid var(--border); font-size: 14px; flex-wrap: wrap; cursor: pointer; transition: border-color 0.12s, background 0.12s; overflow: hidden; }
+  .task-item.entering { animation: taskIn 0.25s ease-out both; }
+  .task-item:hover { border-color: var(--border-info); }
+  .task-item.selected { border-color: var(--border-info); background: var(--bg-info); }
+  .task-item.removing { animation: taskOut 0.3s ease-in forwards !important; pointer-events: none; }
+  .task-item.completing { background: var(--bg-success) !important; border-color: var(--border-success) !important; transition: background 0.15s, border-color 0.15s; }
+  .task-text { flex: 1; min-width: 0; word-break: break-word; display: flex; flex-direction: column; gap: 4px; }
+  .task-text-main { color: var(--text-primary); }
+  .task-meta { display: flex; gap: 8px; font-size: 11px; color: var(--text-tertiary); align-items: center; flex-wrap: wrap; }
+  .task-item .rm { background: none; border: none; cursor: pointer; font-size: 13px; color: var(--text-tertiary); padding: 0 2px; height: auto; flex-shrink: 0; }
+  .task-item .rm:hover { color: var(--text-danger); background: none; }
+
+  .badge { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge-high { background: var(--bg-danger); color: var(--text-danger); }
+  .badge-mid { background: var(--bg-warning); color: var(--text-warning); }
+  .badge-low { background: var(--bg-secondary); color: var(--text-tertiary); border: 0.5px solid var(--border); }
+  .badge-focus { background: var(--bg-info); color: var(--text-info); }
+  .badge-due-soon { background: var(--bg-warning); color: var(--text-warning); }
+  .badge-due-over { background: var(--bg-danger); color: var(--text-danger); }
+
+  .situation-area { margin-bottom: 1rem; }
+  .example-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1.25rem; }
+  .chip { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 0.5px solid var(--border); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; font-family: var(--font); }
+  .chip:hover { background: var(--bg-info); color: var(--text-info); border-color: var(--border-info); }
+
+  .focus-card { background: var(--bg); border: 2px solid var(--border-info); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.5rem; }
+  .focus-label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-info); margin-bottom: 0.75rem; }
+  .focus-task { font-size: 20px; font-weight: 500; margin-bottom: 1rem; line-height: 1.4; }
+  .focus-reason { font-size: 13px; color: var(--text-secondary); line-height: 1.6; padding-top: 0.75rem; border-top: 0.5px solid var(--border); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem; }
+  .done-btn { background: var(--bg-success) !important; color: var(--text-success) !important; border-color: var(--border-success) !important; }
+
+  .suggest-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1rem; }
+  .suggest-item { padding: 12px 14px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 0.5px solid var(--border); display: flex; align-items: flex-start; gap: 10px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+  .suggest-item:hover { border-color: var(--border-info); }
+  .suggest-item.selected { background: var(--bg-info); border-color: var(--border-info); }
+  .suggest-item-check { flex-shrink: 0; margin-top: 2px; }
+  .suggest-item-body { flex: 1; min-width: 0; }
+  .suggest-item-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .suggest-item-why { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 4px; }
+  .suggest-item-time { font-size: 11px; color: var(--text-tertiary); }
+  .suggest-bulk-actions { display: flex; gap: 8px; margin-bottom: 1rem; }
+  .suggest-bulk-actions button { flex: 1; }
+  .suggest-added-btn { background: var(--bg-success) !important; color: var(--text-success) !important; border-color: var(--border-success) !important; }
+
+  .empty-hint { font-size: 13px; color: var(--text-tertiary); text-align: center; padding: 1.5rem; background: var(--bg-secondary); border-radius: var(--radius-md); border: 0.5px solid var(--border); margin-bottom: 1rem; }
+
+  .demo-empty { padding: 2rem 1.5rem; background: var(--bg-secondary); border: 0.5px dashed var(--border); border-radius: var(--radius-lg); text-align: center; margin-bottom: 1rem; }
+  .demo-empty-icon { color: var(--text-tertiary); margin-bottom: 12px; display: flex; justify-content: center; }
+  .demo-empty-title { font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
+  .demo-empty-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px; }
+  .demo-empty-btn { padding: 0 16px; height: 32px; font-size: 13px; background: var(--bg); }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--text-info); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .full-btn { width: 100%; }
+  .section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 0.75rem; }
+  .error-box { font-size: 12px; color: var(--text-danger); background: var(--bg-danger); border: 0.5px solid var(--border-danger); padding: 10px 12px; border-radius: var(--radius-md); margin-bottom: 1rem; }
+
+  @keyframes inputBounce {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(0.97); }
+    70%  { transform: scale(1.02); }
+    100% { transform: scale(1); }
+  }
+  .input-bounce { animation: inputBounce 0.2s ease-out; }
+
+  .snooze-confirm { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: var(--bg-info); border: 0.5px solid var(--border-info); border-radius: var(--radius-lg); margin-bottom: 1.5rem; animation: slideIn 0.25s ease-out; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .snooze-icon { color: var(--text-info); flex-shrink: 0; margin-top: 1px; }
+  .snooze-body { flex: 1; min-width: 0; }
+  .snooze-task-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; word-break: break-word; }
+  .snooze-when { font-size: 13px; color: var(--text-info); margin-bottom: 2px; }
+  .snooze-relative { font-size: 11px; color: var(--text-secondary); }
+  .snooze-undo-btn { font-size: 12px; height: auto; padding: 6px 10px; background: transparent; border: 0.5px solid var(--border-info); color: var(--text-info); flex-shrink: 0; }
+  .snooze-undo-btn:hover { background: var(--bg); }
+
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .cal-title { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
+  .cal-nav { display: flex; gap: 4px; }
+  .cal-nav button { padding: 0 12px; height: 32px; font-size: 13px; }
+
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-dow-grid { margin-bottom: 4px; }
+
+  .cal-dow { font-size: 10px; color: var(--text-tertiary); text-align: center; padding: 6px 0 8px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; }
+  .cal-dow.sun { color: var(--text-danger); }
+  .cal-dow.sat { color: var(--text-info); }
+
+  .cal-cell {
+    aspect-ratio: 1;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    position: relative;
+    transition: background 0.12s;
+  }
+  .cal-cell:hover { background: var(--bg-secondary); }
+  .cal-cell.other-month { opacity: 0.3; }
+  .cal-cell.selected:not(.today) { background: var(--bg-info); }
+
+  .cal-cell-num {
+    font-weight: 400;
+    color: var(--text-primary);
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    line-height: 1;
+  }
+  .cal-cell.sun-cell .cal-cell-num { color: var(--text-danger); }
+  .cal-cell.sat-cell .cal-cell-num { color: var(--text-info); }
+  .cal-cell.today .cal-cell-num {
+    background: var(--text-info);
+    color: var(--bg);
+    font-weight: 500;
+  }
+
+  .cal-dots { display: flex; gap: 3px; align-items: center; justify-content: center; min-height: 7px; }
+  .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .cal-dots-more { font-size: 9px; color: var(--text-tertiary); margin-left: 1px; line-height: 1; }
+  .cal-dot-high { background: var(--text-danger); }
+  .cal-dot-mid { background: var(--text-warning); }
+  .cal-dot-low { background: var(--text-tertiary); }
+  .cal-dot-snooze { background: var(--text-info); }
+
+  .selected-date-tasks { margin-top: 1rem; }
+  .selected-date-header { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="tag">Focus mode — v5</div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('list')">タスク</button>
+    <button class="tab" onclick="switchTab('calendar')">カレンダー</button>
+    <button class="tab" onclick="switchTab('suggest')">提案</button>
+  </div>
+
+  <!-- タスクパネル -->
+  <div id="panel-list" class="panel active">
+    <div class="settings-bar">
+      <label class="toggle"><input type="checkbox" id="notif-toggle" onchange="toggleNotif()" />通知を有効にする</label>
+    </div>
+
+    <div class="task-form">
+      <div class="task-form-row">
+        <input type="text" id="task-input" placeholder="タスクを追加..." />
+        <button onclick="addTask()">追加</button>
+      </div>
+    </div>
+
+    <div class="task-actions-bar">
+      <button id="ai-btn" onclick="aiPick()" style="width:100%;">AIにやることを選んでもらう</button>
+    </div>
+
+    <div id="task-list-container" class="task-list"></div>
+    <div id="result-pick"></div>
+  </div>
+
+  <!-- カレンダーパネル -->
+  <div id="panel-calendar" class="panel">
+    <div class="cal-header">
+      <div class="cal-title" id="cal-title"></div>
+      <div class="cal-nav">
+        <button onclick="calPrev()">◀</button>
+        <button onclick="calToday()">今日</button>
+        <button onclick="calNext()">▶</button>
+      </div>
+    </div>
+    <div class="cal-grid cal-dow-grid" id="cal-dow-grid"></div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div id="selected-date-tasks" class="selected-date-tasks"></div>
+  </div>
+
+  <!-- 提案パネル -->
+  <div id="panel-suggest" class="panel">
+    <div class="situation-area">
+      <label for="situation-text">今どんな状況ですか？</label>
+      <textarea id="situation-text" placeholder="例：お腹が空いてる、安くお腹いっぱいになりたい"></textarea>
+    </div>
+    <div class="example-chips">
+      <span class="chip" onclick="fill('お腹が空いてけだるい。安くお腹いっぱいになりたい。')">安くお腹いっぱい</span>
+      <span class="chip" onclick="fill('仕事のタスクが山積みで何から始めればいい')">タスク山積み</span>
+      <span class="chip" onclick="fill('集中できなくて作業が進まない')">集中できない</span>
+      <span class="chip" onclick="fill('やる気が出ない')">やる気が出ない</span>
+    </div>
+    <div id="result-suggest"></div>
+    <button class="full-btn" id="suggest-btn" onclick="getSuggestions()">AIに何をすべきか提案してもらう</button>
+  </div>
+</div>
+
+<script>
+// ===== 状態 =====
+let tasks = [];
+let nextId = 1;
+let notifEnabled = false;
+let scheduledNotifs = new Map(); // taskId -> timeoutId
+let calDate = new Date();
+let selectedCalDate = null;
+
+// ===== タブ =====
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active',
+      (tab === 'list' && i === 0) || (tab === 'calendar' && i === 1) || (tab === 'suggest' && i === 2));
+  });
+  document.getElementById('panel-list').classList.toggle('active', tab === 'list');
+  document.getElementById('panel-calendar').classList.toggle('active', tab === 'calendar');
+  document.getElementById('panel-suggest').classList.toggle('active', tab === 'suggest');
+  if (tab === 'calendar') renderCalendar();
+}
+
+// ===== 通知 =====
+async function toggleNotif() {
+  const cb = document.getElementById('notif-toggle');
+  if (cb.checked) {
+    if (!("Notification" in window)) {
+      alert("このブラウザは通知に対応していません");
+      cb.checked = false; return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") {
+      alert("通知が許可されませんでした");
+      cb.checked = false; return;
+    }
+    notifEnabled = true;
+    rescheduleAllNotifs();
+  } else {
+    notifEnabled = false;
+    scheduledNotifs.forEach(id => clearTimeout(id));
+    scheduledNotifs.clear();
+  }
+}
+function scheduleNotif(task) {
+  if (!notifEnabled || !task.dueDate) return;
+  const due = new Date(task.dueDate).getTime();
+  const now = Date.now();
+  const delay = due - now;
+  if (delay <= 0 || delay > 2147483647) return;
+  if (scheduledNotifs.has(task.id)) clearTimeout(scheduledNotifs.get(task.id));
+  const id = setTimeout(() => {
+    new Notification("タスクの時間です", { body: task.text });
+    scheduledNotifs.delete(task.id);
+  }, delay);
+  scheduledNotifs.set(task.id, id);
+}
+function rescheduleAllNotifs() {
+  scheduledNotifs.forEach(id => clearTimeout(id));
+  scheduledNotifs.clear();
+  tasks.forEach(scheduleNotif);
+}
+
+// ===== タスク =====
+function addTask(text, dueDate) {
+  const input = document.getElementById("task-input");
+  const txt = text || input.value.trim();
+  if (!txt) return;
+  const due = dueDate !== undefined ? dueDate : null;
+  const task = { id: nextId++, text: txt, priority: null, dueDate: due };
+  tasks.push(task);
+  newestTaskId = task.id;
+  if (!text) {
+    input.value = "";
+    // 入力欄をバウンス
+    input.classList.remove("input-bounce");
+    void input.offsetWidth;
+    input.classList.add("input-bounce");
+    input.addEventListener("animationend", () => input.classList.remove("input-bounce"), { once: true });
+  }
+  scheduleNotif(task);
+  renderTasks();
+  // 次回のrenderではアニメーションしない
+  setTimeout(() => { newestTaskId = null; }, 300);
+  document.getElementById("result-pick").innerHTML = "";
+}
+function animateRemove(id, callback) {
+  const el = document.getElementById(`task-${id}`);
+  if (el) {
+    el.classList.add("removing");
+    setTimeout(callback, 320);
+  } else {
+    callback();
+  }
+}
+
+function removeTask(id) {
+  if (scheduledNotifs.has(id)) { clearTimeout(scheduledNotifs.get(id)); scheduledNotifs.delete(id); }
+  if (selectedTaskId === id) selectedTaskId = null;
+  animateRemove(id, () => {
+    tasks = tasks.filter(t => t.id !== id);
+    renderTasks();
+    document.getElementById("result-pick").innerHTML = "";
+  });
+}
+
+function loadDemoTasks() {
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  tomorrow.setHours(18, 0, 0, 0);
+  const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  nextWeek.setHours(12, 0, 0, 0);
+  const demoTasks = [
+    { text: "メールの返信をする", due: null },
+    { text: "コードレビューをする", due: tomorrow.toISOString() },
+    { text: "仕様書を確認する", due: null },
+    { text: "バグ修正のブランチを作る", due: null },
+    { text: "MTGの議事録をまとめる", due: nextWeek.toISOString() },
+  ];
+  demoTasks.forEach(d => {
+    const task = { id: nextId++, text: d.text, priority: null, dueDate: d.due };
+    tasks.push(task);
+    scheduleNotif(task);
+  });
+  renderTasks();
+}
+function initApp() {
+  const taskInput = document.getElementById("task-input");
+  if (taskInput) taskInput.addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+  renderTasks();
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}
+
+function formatDue(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const m = d.getMonth() + 1, day = d.getDate(), hh = String(d.getHours()).padStart(2,'0'), mm = String(d.getMinutes()).padStart(2,'0');
+  return `${m}/${day} ${hh}:${mm}`;
+}
+function dueStatus(iso) {
+  if (!iso) return null;
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff < 0) return "over";
+  if (diff < 24 * 3600 * 1000) return "soon";
+  return "ok";
+}
+
+function updateAiBtnState() {
+  const btn = document.getElementById("ai-btn");
+  if (!btn) return;
+  const hasActive = tasks.some(t => !t.snoozedUntil);
+  btn.disabled = !hasActive;
+  btn.title = hasActive ? "" : "先にタスクを追加してください";
+}
+
+function renderTasks() {
+  const list = document.getElementById("task-list-container");
+  const active = tasks.filter(t => !t.snoozedUntil);
+  updateAiBtnState();
+
+  if (tasks.length === 0) {
+    list.innerHTML = '<div class="empty-hint">タスクを追加してください</div>';
+    return;
+  }
+  if (active.length === 0) {
+    list.innerHTML = '<div class="empty-hint">アクティブなタスクはありません（「後でやる」のタスクはカレンダーで確認できます）</div>'; return;
+  }
+
+  // 優先度 → 期限 の順でソート
+  const prioOrder = { "high": 0, "mid": 1, "low": 2, null: 3, undefined: 3 };
+  const sorted = [...active].sort((a, b) => {
+    const p = prioOrder[a.priority] - prioOrder[b.priority];
+    if (p !== 0) return p;
+    if (a.dueDate && b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate);
+    if (a.dueDate) return -1; if (b.dueDate) return 1;
+    return a.id - b.id;
+  });
+
+  list.innerHTML = sorted.map(t => {
+    const pBadge = t.priority ? `<span class="badge badge-${t.priority}">${{high:"高",mid:"中",low:"低"}[t.priority]}</span>` : '';
+    const due = t.dueDate ? (() => {
+      const s = dueStatus(t.dueDate);
+      const cls = s === "over" ? "badge-due-over" : (s === "soon" ? "badge-due-soon" : "badge-low");
+      return `<span class="badge ${cls}">${formatDue(t.dueDate)}</span>`;
+    })() : '';
+    const enterCls = newestTaskId === t.id ? ' entering' : '';
+    return `
+      <div class="task-item${selectedTaskId === t.id ? ' selected' : ''}${enterCls}" id="task-${t.id}" onclick="selectTask(${t.id})">
+        <div class="task-text">
+          <div class="task-text-main">${t.text}</div>
+          ${(pBadge || due) ? `<div class="task-meta">${pBadge}${due}</div>` : ''}
+        </div>
+        <button class="rm" onclick="event.stopPropagation(); removeTask(${t.id})">✕</button>
+      </div>`;
+  }).join("");
+}
+
+function selectTask(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+
+  if (selectedTaskId === id) {
+    // 同じタスクをクリック → 選択解除
+    selectedTaskId = null;
+    renderTasks();
+    document.getElementById("result-pick").innerHTML = "";
+    return;
+  }
+
+  selectedTaskId = id;
+  renderTasks();
+
+  const escText = task.text.replace(/'/g, "\\'");
+  document.getElementById("result-pick").innerHTML = `
+    <div class="focus-card">
+      <div class="focus-label">選択中のタスク</div>
+      <div class="focus-task">${task.text}</div>
+      <div class="actions">
+        <button class="done-btn" onclick="markDone('${escText}')">完了 ✓</button>
+        <button onclick="toggleSnoozePicker('${escText}')">後でやる</button>
+      </div>
+      <div id="snooze-picker" style="display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">いつに戻しますか？</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+          <button onclick="quickSnoozeFill(60)" style="font-size:12px;height:30px;padding:0 12px;">1時間後</button>
+          <button onclick="quickSnoozeFill(180)" style="font-size:12px;height:30px;padding:0 12px;">3時間後</button>
+          <button onclick="quickSnoozeFill(1440)" style="font-size:12px;height:30px;padding:0 12px;">明日の今</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <input type="date" id="snooze-date" style="flex:1;min-width:130px;" />
+          <input type="time" id="snooze-time" style="flex:1;min-width:100px;" />
+          <button onclick="confirmSnooze('${escText}')">決定</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function cancelSnooze(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+  if (snoozeTimers.has(id)) { clearTimeout(snoozeTimers.get(id)); snoozeTimers.delete(id); }
+  task.snoozedUntil = null;
+  renderTasks();
+  if (document.getElementById('panel-calendar').classList.contains('active')) renderCalendar();
+}
+
+// ===== JSON抽出 =====
+function extractJSON(content) {
+  const textBlocks = (content || []).filter(b => b.type === "text").map(b => b.text || "");
+  const allText = textBlocks.join("\n").replace(/```json|```/g, "");
+  const startIdx = allText.indexOf("{");
+  if (startIdx === -1) throw new Error("JSONが見つからない");
+  let depth = 0, endIdx = -1, inStr = false, esc = false;
+  for (let i = startIdx; i < allText.length; i++) {
+    const c = allText[i];
+    if (esc) { esc = false; continue; }
+    if (c === "\\") { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === "{") depth++; else if (c === "}") { depth--; if (depth === 0) { endIdx = i; break; } }
+  }
+  if (endIdx === -1) throw new Error("JSONが閉じていない");
+  return JSON.parse(allText.slice(startIdx, endIdx + 1));
+}
+
+// ===== AIでやること選定（優先度判定＋1つピック） =====
+async function aiPick() {
+  const activeTasks = tasks.filter(t => !t.snoozedUntil);
+  if (activeTasks.length === 0) { alert("タスクを追加してください"); return; }
+  const btn = document.getElementById("ai-btn");
+  const resultArea = document.getElementById("result-pick");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>考え中...';
+  resultArea.innerHTML = "";
+
+  const taskListText = activeTasks.map(t => {
+    const due = t.dueDate ? ` (期限: ${formatDue(t.dueDate)})` : '';
+    return `id:${t.id} "${t.text}"${due}`;
+  }).join("\n");
+
+  const prompt = `あなたはADHDのエンジニアを支援するタスクコーチです。
+以下のタスクに対して、各タスクの優先度（高/中/低）を判定しつつ、今すぐやるべき「たった1つ」のタスクを選んでください。
+期限の近さ・影響範囲・他タスクへの依存を考慮。半分以上が「高」にならないよう、メリハリをつけてください。
+
+タスク:
+${taskListText}
+
+JSON形式のみで回答（前置き・\`\`\`不要）:
+{
+  "priorities": [{"id": 数字, "priority": "high" | "mid" | "low"}, ...],
+  "pick": {"id": 数字, "reason": "なぜこれを今やるべきか50字以内"}
+}`;
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1500, messages: [{ role: "user", content: prompt }] })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error?.message || "APIエラー");
+    const parsed = extractJSON(data.content);
+
+    // 優先度を反映
+    if (Array.isArray(parsed.priorities)) {
+      parsed.priorities.forEach(p => {
+        const t = tasks.find(x => x.id === p.id);
+        if (t && ["high","mid","low"].includes(p.priority)) t.priority = p.priority;
+      });
+    }
+    renderTasks();
+
+    // ピックされたタスクを表示
+    const pickedId = parsed.pick?.id;
+    const picked = tasks.find(t => t.id === pickedId);
+    if (!picked) throw new Error("AIが選んだタスクが見つかりませんでした");
+
+    const escText = picked.text.replace(/'/g, "\\'");
+    resultArea.innerHTML = `
+      <div class="focus-card">
+        <div class="focus-label">今やること</div>
+        <div class="focus-task">${picked.text}</div>
+        <div class="focus-reason">${parsed.pick.reason || ''}</div>
+        <div class="actions">
+          <button class="done-btn" onclick="markDone('${escText}')">完了 ✓</button>
+          <button onclick="toggleSnoozePicker('${escText}')">後でやる</button>
+        </div>
+        <div id="snooze-picker" style="display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);">
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">いつに戻しますか？</div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+            <button onclick="quickSnoozeFill(60)" style="font-size:12px;height:30px;padding:0 12px;">1時間後</button>
+            <button onclick="quickSnoozeFill(180)" style="font-size:12px;height:30px;padding:0 12px;">3時間後</button>
+            <button onclick="quickSnoozeFill(1440)" style="font-size:12px;height:30px;padding:0 12px;">明日の今</button>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input type="date" id="snooze-date" style="flex:1;min-width:130px;" />
+            <input type="time" id="snooze-time" style="flex:1;min-width:100px;" />
+            <button onclick="confirmSnooze('${escText}')">決定</button>
+          </div>
+        </div>
+      </div>`;
+
+    // フォーカス中のタスクをリスト上でも強調
+    selectedTaskId = picked.id;
+    renderTasks();
+  } catch (e) {
+    resultArea.innerHTML = `<div class="error-box">エラー: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.innerHTML = "AIにやることを選んでもらう";
+  }
+}
+function markDone(taskText) {
+  const target = tasks.find(t => t.text === taskText);
+  if (!target) return;
+
+  if (selectedTaskId === target.id) selectedTaskId = null;
+  const el = document.getElementById(`task-${target.id}`);
+
+  if (el) {
+    // 緑フラッシュ → スライドアウト
+    el.classList.add("completing");
+    setTimeout(() => {
+      el.classList.add("removing");
+      setTimeout(() => {
+        tasks = tasks.filter(t => t.id !== target.id);
+        renderTasks();
+        document.getElementById("result-pick").innerHTML = `<div class="empty-hint">✓ 完了！お疲れさまでした</div>`;
+        setTimeout(() => { document.getElementById("result-pick").innerHTML = ""; }, 2000);
+      }, 320);
+    }, 350);
+  } else {
+    tasks = tasks.filter(t => t.id !== target.id);
+    renderTasks();
+    document.getElementById("result-pick").innerHTML = `<div class="empty-hint">✓ 完了！お疲れさまでした</div>`;
+    setTimeout(() => { document.getElementById("result-pick").innerHTML = ""; }, 2000);
+  }
+}
+
+// ===== スヌーズ =====
+let snoozeTimers = new Map();
+let selectedTaskId = null;
+let newestTaskId = null; // taskId -> timeoutId
+
+function toggleSnoozePicker(taskText) {
+  const picker = document.getElementById("snooze-picker");
+  if (!picker) return;
+  picker.style.display = picker.style.display === "none" ? "block" : "none";
+}
+
+function quickSnoozeFill(minutes) {
+  const until = new Date(Date.now() + minutes * 60 * 1000);
+  const y = until.getFullYear();
+  const mo = String(until.getMonth() + 1).padStart(2, '0');
+  const d = String(until.getDate()).padStart(2, '0');
+  const hh = String(until.getHours()).padStart(2, '0');
+  const mm = String(until.getMinutes()).padStart(2, '0');
+  const dateEl = document.getElementById("snooze-date");
+  const timeEl = document.getElementById("snooze-time");
+  if (dateEl) dateEl.value = `${y}-${mo}-${d}`;
+  if (timeEl) timeEl.value = `${hh}:${mm}`;
+}
+
+function confirmSnooze(taskText) {
+  const dateVal = document.getElementById("snooze-date")?.value;
+  const timeVal = document.getElementById("snooze-time")?.value;
+  if (!dateVal) { alert("日付を選択してください"); return; }
+  const timeStr = timeVal || "09:00";
+  const until = new Date(`${dateVal}T${timeStr}`);
+  if (isNaN(until.getTime()) || until.getTime() <= Date.now()) {
+    alert("未来の時刻を選択してください"); return;
+  }
+  applySnooze(taskText, until);
+}
+
+function applySnooze(taskText, untilDate) {
+  const target = tasks.find(t => t.text === taskText);
+  if (!target) return;
+  target.snoozedUntil = untilDate.toISOString();
+  scheduleUnsnooze(target);
+  renderTasks();
+
+  const diffMin = Math.floor((untilDate.getTime() - Date.now()) / 60000);
+  const days = Math.floor(diffMin / 1440);
+  const hoursTotal = Math.floor(diffMin / 60);
+  const hours = hoursTotal % 24;
+  const mins = diffMin % 60;
+  let relative;
+  if (days > 0) relative = hours > 0 ? `${days}日${hours}時間後` : `${days}日後`;
+  else if (hoursTotal > 0) relative = mins > 0 ? `${hoursTotal}時間${mins}分後` : `${hoursTotal}時間後`;
+  else relative = `${Math.max(1, mins)}分後`;
+
+  const m = untilDate.getMonth() + 1, d = untilDate.getDate();
+  const hh = String(untilDate.getHours()).padStart(2,'0'), mm = String(untilDate.getMinutes()).padStart(2,'0');
+  const dayNames = ['日','月','火','水','木','金','土'];
+  const dow = dayNames[untilDate.getDay()];
+
+  document.getElementById("result-pick").innerHTML = `
+    <div class="snooze-confirm">
+      <div class="snooze-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="snooze-body">
+        <div class="snooze-task-name">${target.text}</div>
+        <div class="snooze-when">${m}月${d}日（${dow}） ${hh}:${mm} に戻します</div>
+        <div class="snooze-relative">${relative}・カレンダーから確認できます</div>
+      </div>
+      <button class="snooze-undo-btn" onclick="undoSnooze(${target.id})">取り消し</button>
+    </div>`;
+}
+
+function undoSnooze(id) {
+  cancelSnooze(id);
+  document.getElementById("result-pick").innerHTML = `<div class="empty-hint">取り消しました</div>`;
+  setTimeout(() => { document.getElementById("result-pick").innerHTML = ""; }, 2000);
+}
+
+function scheduleUnsnooze(task) {
+  if (snoozeTimers.has(task.id)) { clearTimeout(snoozeTimers.get(task.id)); snoozeTimers.delete(task.id); }
+  if (!task.snoozedUntil) return;
+  const delay = new Date(task.snoozedUntil).getTime() - Date.now();
+  if (delay <= 0) { task.snoozedUntil = null; renderTasks(); return; }
+  if (delay > 2147483647) return;
+  const id = setTimeout(() => {
+    task.snoozedUntil = null;
+    snoozeTimers.delete(task.id);
+    renderTasks();
+    if (notifEnabled && "Notification" in window && Notification.permission === "granted") {
+      new Notification("タスクを復活させました", { body: task.text });
+    }
+  }, delay);
+  snoozeTimers.set(task.id, id);
+}
+
+// ===== カレンダー =====
+function calPrev() { calDate.setMonth(calDate.getMonth() - 1); renderCalendar(); }
+function calNext() { calDate.setMonth(calDate.getMonth() + 1); renderCalendar(); }
+function calToday() { calDate = new Date(); selectedCalDate = new Date().toDateString(); renderCalendar(); }
+
+function renderCalendar() {
+  const dowGrid = document.getElementById("cal-dow-grid");
+  dowGrid.innerHTML = ['日','月','火','水','木','金','土'].map((d, i) => {
+    const cls = i === 0 ? 'sun' : (i === 6 ? 'sat' : '');
+    return `<div class="cal-dow ${cls}">${d}</div>`;
+  }).join("");
+
+  const y = calDate.getFullYear(), m = calDate.getMonth();
+  document.getElementById("cal-title").textContent = `${y}年${m + 1}月`;
+  const firstDay = new Date(y, m, 1);
+  const startOffset = firstDay.getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const prevDays = new Date(y, m, 0).getDate();
+  const today = new Date().toDateString();
+
+  // タスクを日付別に集計（期限＋スヌーズ復活日）
+  const tasksByDate = {};
+  const addToDate = (iso, task, kind) => {
+    if (!iso) return;
+    const key = new Date(iso).toDateString();
+    if (!tasksByDate[key]) tasksByDate[key] = [];
+    tasksByDate[key].push({ ...task, _kind: kind, _whenISO: iso });
+  };
+  tasks.forEach(t => {
+    if (t.dueDate) addToDate(t.dueDate, t, 'due');
+    if (t.snoozedUntil) addToDate(t.snoozedUntil, t, 'snoozed');
+  });
+
+  const grid = document.getElementById("cal-grid");
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    const day = prevDays - startOffset + i + 1;
+    cells.push({ day, month: m - 1, year: y, otherMonth: true, date: new Date(y, m - 1, day) });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, month: m, year: y, otherMonth: false, date: new Date(y, m, d) });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const i = cells.length - daysInMonth - startOffset + 1;
+    cells.push({ day: i, month: m + 1, year: y, otherMonth: true, date: new Date(y, m + 1, i) });
+    if (cells.length >= 42) break;
+  }
+
+  grid.innerHTML = cells.slice(0, 42).map((c, idx) => {
+    const dateStr = c.date.toDateString();
+    const isToday = dateStr === today;
+    const isSelected = dateStr === selectedCalDate;
+    const dow = idx % 7;
+    const classes = ['cal-cell'];
+    if (c.otherMonth) classes.push('other-month');
+    if (isToday) classes.push('today');
+    if (isSelected) classes.push('selected');
+    if (dow === 0) classes.push('sun-cell');
+    if (dow === 6) classes.push('sat-cell');
+    const dayTasks = tasksByDate[dateStr] || [];
+    const visible = dayTasks.slice(0, 3);
+    const more = dayTasks.length - visible.length;
+    const dots = visible.map(t => {
+      if (t._kind === 'snoozed') return `<span class="cal-dot cal-dot-snooze"></span>`;
+      const cls = t.priority === "high" ? "cal-dot-high" : (t.priority === "mid" ? "cal-dot-mid" : "cal-dot-low");
+      return `<span class="cal-dot ${cls}"></span>`;
+    }).join("");
+    const moreLabel = more > 0 ? `<span class="cal-dots-more">+${more}</span>` : '';
+    return `
+      <div class="${classes.join(' ')}" onclick="selectDate('${dateStr}')">
+        <div class="cal-cell-num">${c.day}</div>
+        <div class="cal-dots">${dots}${moreLabel}</div>
+      </div>`;
+  }).join("");
+
+  renderSelectedDateTasks();
+}
+
+function selectDate(dateStr) {
+  selectedCalDate = dateStr;
+  renderCalendar();
+}
+
+function renderSelectedDateTasks() {
+  const container = document.getElementById("selected-date-tasks");
+  if (!selectedCalDate) { container.innerHTML = ""; return; }
+
+  const dueList = tasks.filter(t => t.dueDate && new Date(t.dueDate).toDateString() === selectedCalDate);
+  const snoozedList = tasks.filter(t => t.snoozedUntil && new Date(t.snoozedUntil).toDateString() === selectedCalDate);
+
+  const d = new Date(selectedCalDate);
+  const label = `${d.getMonth() + 1}月${d.getDate()}日`;
+
+  if (dueList.length === 0 && snoozedList.length === 0) {
+    container.innerHTML = `<div class="selected-date-header">${label} のタスク</div><div class="empty-hint">この日のタスクはありません</div>`;
+    return;
+  }
+
+  const timeOf = iso => {
+    const t = new Date(iso);
+    return `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  };
+
+  const dueHTML = dueList.length === 0 ? '' : `
+    <div class="section-label" style="margin-top:8px;">期限（${dueList.length}件）</div>
+    ${dueList.map(t => {
+      const pBadge = t.priority ? `<span class="badge badge-${t.priority}">${{high:"高",mid:"中",low:"低"}[t.priority]}</span>` : '';
+      return `
+        <div class="task-item">
+          <div class="task-text">
+            <div class="task-text-main">${t.text}</div>
+            <div class="task-meta">${pBadge}<span class="badge badge-low">${timeOf(t.dueDate)}</span></div>
+          </div>
+        </div>`;
+    }).join("")}`;
+
+  const snoozedHTML = snoozedList.length === 0 ? '' : `
+    <div class="section-label" style="margin-top:12px;">後でやる・復活予定（${snoozedList.length}件）</div>
+    ${snoozedList.map(t => `
+      <div class="task-item" style="opacity:0.75;">
+        <div class="task-text">
+          <div class="task-text-main">${t.text}</div>
+          <div class="task-meta"><span class="badge badge-low">${timeOf(t.snoozedUntil)} に復活</span></div>
+        </div>
+        <button class="rm" onclick="cancelSnooze(${t.id})" title="今すぐ戻す">↩</button>
+      </div>`).join("")}`;
+
+  container.innerHTML = `<div class="selected-date-header">${label} のタスク</div>${dueHTML}${snoozedHTML}`;
+}
+
+// ===== 提案 =====
+function fill(text) { document.getElementById("situation-text").value = text; }
+async function getSuggestions() {
+  const situation = document.getElementById("situation-text").value.trim();
+  if (!situation) { alert("今の状況を入力してください"); return; }
+  const btn = document.getElementById("suggest-btn");
+  const resultArea = document.getElementById("result-suggest");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>考え中...';
+  btn.textContent = '';
+  btn.innerHTML = '<span class="spinner"></span>考え中...';
+  resultArea.innerHTML = "";
+  window._currentSuggestions = null;
+
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}年${today.getMonth() + 1}月`;
+  const prompt = `あなたはADHDを持つ人を支援するコーチです。現在は${dateStr}、日本在住のユーザー。
+ユーザーの状況に対して、今すぐできる具体的なアクションを5つ提案してください。バリエーション豊かに（同じ方向性に偏らない）。
+
+【前提知識（最新の日本の物価）】
+- コンビニおにぎり 150〜200円、弁当 500〜700円、スーパー惣菜はコンビニより2〜3割安
+- 業務スーパー・ドラッグストアはさらに安い、松屋・すき家の牛丼 400〜500円、パックご飯＋レトルト 1食200円前後
+
+【条件】5〜30分で実行できる、ADHD特性を考慮したシンプルさ、具体的内容
+
+ユーザーの状況: ${situation}
+
+JSON形式のみで回答（前置きなし）:
+{"suggestions": [{"task": "具体的なアクション", "why": "なぜ有効か40字以内", "time": "目安時間"}, ...5つ]}`;
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 2000, messages: [{ role: "user", content: prompt }] })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error?.message || "APIエラー");
+    const parsed = extractJSON(data.content);
+    if (!parsed.suggestions || !Array.isArray(parsed.suggestions)) throw new Error("提案フォーマット不正");
+
+    window._currentSuggestions = parsed.suggestions;
+    const suggestBtn = document.getElementById("suggest-btn");
+    if (suggestBtn) suggestBtn.textContent = "別の提案を出す";
+
+    const items = parsed.suggestions.map((s, i) => `
+      <div class="suggest-item" id="sugg-${i}" onclick="toggleSuggestion(${i})">
+        <input type="checkbox" class="suggest-item-check" id="sugg-cb-${i}" onclick="event.stopPropagation(); toggleSuggestion(${i});" />
+        <div class="suggest-item-body">
+          <div class="suggest-item-title">${s.task}</div>
+          <div class="suggest-item-why">${s.why}</div>
+          <div class="suggest-item-time">目安 ${s.time}</div>
+        </div>
+      </div>`).join("");
+
+    resultArea.innerHTML = `
+      <div class="section-label">提案されたアクション（5件）</div>
+      <div class="suggest-list">${items}</div>
+      <div class="suggest-bulk-actions">
+        <button id="bulk-add-btn" onclick="addSelectedSuggestions()" disabled>選択したタスクを追加</button>
+      </div>`;
+  } catch (e) {
+    resultArea.innerHTML = `<div class="error-box">エラー: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = window._currentSuggestions ? "別の提案を出す" : "AIに何をすべきか提案してもらう";
+  }
+}
+
+function toggleSuggestion(index) {
+  const item = document.getElementById(`sugg-${index}`);
+  const cb = document.getElementById(`sugg-cb-${index}`);
+  if (!item || !cb) return;
+  // チェックボックス直接クリックなら反転済み、それ以外なら反転させる
+  if (event.target !== cb) cb.checked = !cb.checked;
+  item.classList.toggle("selected", cb.checked);
+  const anyChecked = document.querySelectorAll(".suggest-item-check:checked").length > 0;
+  const btn = document.getElementById("bulk-add-btn");
+  if (btn) btn.disabled = !anyChecked;
+}
+
+function addSelectedSuggestions() {
+  const checked = document.querySelectorAll(".suggest-item-check:checked");
+  const suggestions = window._currentSuggestions || [];
+  let count = 0;
+  const addedIndices = [];
+
+  checked.forEach(cb => {
+    const idx = parseInt(cb.id.replace("sugg-cb-", ""));
+    if (!isNaN(idx) && suggestions[idx]) {
+      addTask(suggestions[idx].task, null);
+      addedIndices.push(idx);
+      count++;
+    }
+  });
+  if (count === 0) return;
+
+  // 追加済みの候補を非表示
+  addedIndices.forEach(idx => {
+    const item = document.getElementById(`sugg-${idx}`);
+    if (item) item.remove();
+  });
+
+  // 残りのチェックを解除してボタンリセット
+  document.querySelectorAll(".suggest-item-check").forEach(cb => { cb.checked = false; });
+  document.querySelectorAll(".suggest-item").forEach(el => el.classList.remove("selected"));
+  const btn = document.getElementById("bulk-add-btn");
+  if (btn) {
+    btn.textContent = `${count}件追加しました ✓`;
+    btn.classList.add("suggest-added-btn");
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = "選択したタスクを追加";
+      btn.classList.remove("suggest-added-btn");
+      btn.disabled = true;
+    }, 1500);
+  }
+}
+
+</script>
+</body>
+</html>
